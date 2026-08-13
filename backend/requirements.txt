@@ -1,0 +1,38 @@
+# ============================================================
+# 后端依赖清单
+# 说明:每一行是一个 Python 包,`pip install -r requirements.txt`
+# 会把这些包都装好。`>=x` 表示"最低版本 x",`<=x` 表示"最高版本 x"。
+# ============================================================
+
+# LangChain + LangGraph 框架(本项目核心:提供 LLM 封装、图编排、多智能体、MCP 适配能力)
+langchain>=0.3.0
+langchain-openai>=0.2.0
+langgraph>=0.2.60
+langchain-mcp-adapters>=0.1.0
+
+# FastAPI和相关依赖(FastAPI = 后端 Web 框架;uvicorn = 运行它的服务器)
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.0.0             # 数据校验/模型(定义请求响应结构)
+pydantic-settings>=2.0.0    # 从 .env 读取配置
+
+# HTTP客户端(发 HTTP 请求用,比如调用高德、Unsplash 的接口)
+httpx>=0.27.0
+aiohttp>=3.10.0
+requests>=2.31.0            # 高德 Web 服务 REST 接口直连(amap_service.py 用)
+
+# 环境变量管理(读取 .env 文件)
+python-dotenv>=1.0.0
+
+# CORS支持(python-multipart 也用于表单解析,配合 FastAPI)
+python-multipart>=0.0.9
+
+# 日志
+loguru>=0.7.0
+
+# MCP相关(fastmcp = MCP 依赖;uv = 用来启动 amap-mcp-server 的工具)
+fastmcp>=2.0.0
+uv>=0.8.0
+
+# 其他工具
+python-dateutil>=2.8.2     # 日期解析

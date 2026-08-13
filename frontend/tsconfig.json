@@ -1,0 +1,53 @@
+{
+  // TypeScript 编译配置。tsconfig.json 支持写注释(它按 JSONC 解析)。
+  // 这个文件告诉 TS 编译器:代码该怎么检查、路径怎么解析。
+  "compilerOptions": {
+    // 编译后生成的 JS 目标版本(ES2020 表示较新的语法)
+    "target": "ES2020",
+    // 用 ES 标准的 class 字段定义方式(配合 target 使用)
+    "useDefineForClassFields": true,
+    // 模块规范:ESNext 表示用最新的 ES 模块语法(import/export)
+    "module": "ESNext",
+    // 代码里能用到的全局类型库:DOM 表示浏览器环境
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    // 跳过对第三方库(.d.ts)的类型检查,加快编译速度
+    "skipLibCheck": true,
+
+    /* Bundler mode(打包器模式):专为 Vite 这类打包工具设计的解析方式) */
+    // 用打包器的方式来解析模块路径(而非 Node 的方式)
+    "moduleResolution": "bundler",
+    // 允许在 import 时带 .ts 后缀
+    "allowImportingTsExtensions": true,
+    // 每个文件作为独立模块编译(适合打包器)
+    "isolatedModules": true,
+    // 强制把每个文件当成模块(避免全局变量污染)
+    "moduleDetection": "force",
+    // 不生成 JS 输出文件(因为 Vite 负责编译,TS 只做类型检查)
+    "noEmit": true,
+    // 保留 JSX 不转译(交给 Vite/Vue 插件处理)
+    "jsx": "preserve",
+
+    /* Linting(更严格的类型检查,能提前发现潜在 bug) */
+    // 开启严格模式(所有类型都要明确)
+    "strict": true,
+    // 有未使用的局部变量时报错
+    "noUnusedLocals": true,
+    // 有未使用的函数参数时报错
+    "noUnusedParameters": true,
+    // switch 语句必须写 break,防止"穿透"
+    "noFallthroughCasesInSwitch": true,
+    // 检查副作用导入
+    "noUncheckedSideEffectImports": true,
+
+    /* Path mapping(路径别名,让你能用 @ 代替 src 目录) */
+    // 基准目录:所有路径都相对于本文件所在目录
+    "baseUrl": ".",
+    // 别名映射:@/* 代表 src/*。写 import xx from '@/services/api' 时,
+    // TS 会知道它指向 src/services/api.ts(和 vite.config.ts 里的 alias 对应)
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  },
+  // 让 TS 只检查这些文件(本项目里的 TS/Vue/类型声明文件)
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "src/**/*.d.ts"]
+}
