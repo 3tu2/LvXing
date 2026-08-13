@@ -195,20 +195,6 @@ Agent可以自动调用以下高德地图MCP工具:
 - `GET /api/map/weather` - 查询天气
 - `POST /api/map/route` - 规划路线
 
-## 🤝 贡献指南
-
-欢迎提交Pull Request或Issue!
-
-## 📜 开源协议
-
-CC BY-NC-SA 4.0
-
-## 🙏 致谢
-
-- [LangChain](https://github.com/langchain-ai/langchain) - LLM 应用框架
-- [LangGraph](https://github.com/langchain-ai/langgraph) - 多智能体图编排框架
-- [高德地图开放平台](https://lbs.amap.com/) - 地图服务
-- [amap-mcp-server](https://github.com/sugarforever/amap-mcp-server) - 高德地图MCP服务器
 
 ---
 
