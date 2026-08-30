@@ -163,3 +163,7 @@ CC BY-NC-SA 4.0
 - [高德地图开放平台](https://lbs.amap.com/) / [amap-mcp-server](https://github.com/sugarforever/amap-mcp-server)
 - [阿里云百炼](https://bailian.console.aliyun.com/)(千问 Embedding)
 - [ChromaDB](https://www.trychroma.com/) / [rank-bm25](https://github.com/dorianbrown/rank_bm25)
+
+---
+
+**智能旅行助手** - 让旅行计划变得简单而智能 🌈
