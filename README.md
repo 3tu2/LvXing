@@ -1,202 +1,165 @@
-# 智能旅行助手 🌍✈️
+# 南昌旅行助手 🌆✈️
 
-基于 LangChain + LangGraph 框架构建的智能旅行规划助手,集成高德地图 MCP 服务,提供个性化的旅行计划生成。
+基于 **LangChain + LangGraph + 高德 MCP + RAG** 构建的南昌专属智能旅行规划助手,支持用户账号、对话式增量行程规划、南昌本地知识增强、个性化问答与后台管理。
 
-## ✨ 功能特点
+## ✨ 功能特性
 
-- 🤖 **AI驱动的旅行规划**: 基于 LangChain + LangGraph 的多智能体协作,智能生成详细的多日旅程
-- 🗺️ **高德地图集成**: 通过MCP协议接入高德地图服务,支持景点搜索、路线规划、天气查询
-- 🧠 **智能工具调用**: Agent自动调用高德地图MCP工具,获取实时POI、路线和天气信息
-- 🎨 **现代化前端**: Vue3 + TypeScript + Vite,响应式设计,流畅的用户体验
-- 📱 **完整功能**: 包含住宿、交通、餐饮和景点游览时间推荐
+### 用户与账号
+- 🔐 **用户体系**:注册 / 登录(JWT 认证,PBKDF2 密码哈希),**所有功能需登录后使用**
+- 🧠 **个性化记忆**:基于 ChromaDB 存储历史对话向量,按用户 ID 隔离,反馈分析 Agent 自动提取旅行偏好并注入后续对话
+
+### 行程规划
+- 🗺️ **南昌聚焦**:全站固定南昌,集成高德地图(景点搜索 / 路线 / 天气)
+- 🤖 **多智能体生成**:LangGraph 编排景点 / 天气 / 酒店三个专家并行采集,规划专家汇总
+- 🧩 **对话式增量规划**:规划状态(出发地 / 日期 / 同行人数 / 预算 / 交通 / 兴趣标签)+ 参数补全 + **局部重规划**(避免全景重新生成)+ 冲突检查
+- 📚 **RAG 知识增强**:南昌攻略 / 景点 / 美食 / 拍照点 / 交通枢纽 / 营业时间,清洗切片向量化,**向量 + BM25 混合检索(RRF 融合)**、来源约束、规划后处理(周一闭馆检测等)
+- 📱 **历史行程**:登录用户生成即自动保存,可回看 / 打开 / 删除
+
+### 对话与后台
+- 💬 **旅行对话助手**:多轮追问、南昌知识 + 高德实时信息(天气 / POI)+ 个性化记忆,附来源引用
+- 🛠️ **后台管理**:管理员专属仪表盘(用户 / 行程 / 问答 / 知识库统计)、用户管理(启用 / 禁用)、知识库管理
 
 ## 🏗️ 技术栈
 
-### 后端
-- **框架**: LangChain + LangGraph
-- **API**: FastAPI
-- **MCP工具**: amap-mcp-server (高德地图)
-- **LLM**: 支持多种LLM提供商(OpenAI, DeepSeek等)
+**后端**:Python + FastAPI + LangChain / LangGraph + 高德 MCP + 千问 Embedding + ChromaDB + rank-bm25 + SQLite + PyJWT
 
-### 前端
-- **框架**: Vue 3 + TypeScript
-- **构建工具**: Vite
-- **UI组件库**: Ant Design Vue
-- **地图服务**: 高德地图 JavaScript API
-- **HTTP客户端**: Axios
+**前端**:Vue 3 + TypeScript + Vite + Ant Design Vue + 高德地图 JS API + Axios
 
 ## 📁 项目结构
 
 ```
-trip-planner/
-├── backend/                    # 后端服务
+├── backend/
 │   ├── app/
-│   │   ├── agents/            # Agent实现
-│   │   │   └── trip_planner_agent.py
-│   │   ├── api/               # FastAPI路由
-│   │   │   ├── main.py
-│   │   │   └── routes/
-│   │   │       ├── trip.py
-│   │   │       └── map.py
-│   │   ├── services/          # 服务层
-│   │   │   ├── amap_service.py
-│   │   │   └── llm_service.py
-│   │   ├── models/            # 数据模型
-│   │   │   └── schemas.py
-│   │   └── config.py          # 配置管理
+│   │   ├── agents/              # trip_planner_agent(多智能体)、feedback_agent(偏好提取)
+│   │   ├── api/                 # main.py、deps.py(认证依赖)、routes/(10 组路由)
+│   │   │   └── routes/          # auth/trip/planning/kb/chat/memory/trips/poi/map/admin
+│   │   ├── models/schemas.py    # 全部数据模型
+│   │   ├── services/            # 服务层(规划/知识/检索/记忆/认证/行程/后处理等)
+│   │   ├── config.py            # 配置管理
+│   │   └── db.py                # SQLite(用户/行程/规划会话)
+│   ├── scripts/                 # kb_ingest.py(知识摄取)、create_admin.py(管理员种子)
+│   ├── data/                    # documents/nanchang/(知识)、app.db、chroma/、kb/
 │   ├── requirements.txt
-│   ├── .env.example
-│   └── .gitignore
-├── frontend/                   # 前端应用
-│   ├── src/
-│   │   ├── components/        # Vue组件
-│   │   ├── services/          # API服务
-│   │   ├── types/             # TypeScript类型
-│   │   └── views/             # 页面视图
-│   ├── package.json
-│   └── vite.config.ts
-└── README.md
+│   └── .env.example
+└── frontend/
+    ├── src/
+    │   ├── views/               # Home/Result/Login/Register/MyTrips/Chat/admin/
+    │   ├── services/            # api.ts、auth.ts
+    │   ├── types/               # index.ts
+    │   ├── main.ts              # 路由 + 守卫
+    │   └── App.vue
+    └── package.json
 ```
 
 ## 🚀 快速开始
 
+> 💡 **一键初始化(推荐)**:`backend/scripts/setup.bat`(Windows)或 `bash backend/scripts/setup.sh`(Linux/macOS),
+> 自动完成建虚拟环境、装依赖、检查配置、摄取知识库、创建管理员。详见 `docs/deployment.md`。
+
 ### 前提条件
 
-- Python 3.10+
+- Python 3.10+(推荐 3.12)
 - Node.js 16+
-- 高德地图API密钥 (Web服务API和Web端(JS API))
-- LLM API密钥 (OpenAI/DeepSeek等)
+- 高德地图 API Key(Web 服务 API + Web 端 JS API)
+- LLM API Key(DeepSeek 等 OpenAI 兼容接口)
+- 千问 Embedding API Key(阿里云百炼,用于 RAG)
 
-### 后端安装
+### 1. 后端安装
 
-1. 进入后端目录
 ```bash
 cd backend
-```
-
-2. 创建虚拟环境
-```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-```
-
-3. 安装依赖
-```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows;Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. 配置环境变量
+### 2. 配置环境变量
+
 ```bash
-cp .env.example .env
-# 编辑.env文件,填入你的API密钥
+cp .env.example .env             # 编辑 .env,填入你的密钥
 ```
 
-5. 启动后端服务
+关键变量:
+
+| 变量 | 说明 |
+|---|---|
+| `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL_ID` | 大模型(DeepSeek 等) |
+| `AMAP_API_KEY` | 高德 Web 服务 Key(必填) |
+| `DASHSCOPE_API_KEY` | 千问 Embedding Key(RAG 用) |
+| `JWT_SECRET` | JWT 签名密钥(随机长字符串) |
+
+### 3. 摄取南昌知识库(RAG 必需)
+
+```bash
+python scripts/kb_ingest.py               # 清洗 → 切片 → 向量化 → 双索引
+python scripts/kb_ingest.py --search "滕王阁"   # 验证混合检索
+```
+
+### 4. 启动后端
+
 ```bash
 uvicorn app.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 前端安装
+### 5. 创建管理员(可选,用后台管理时)
 
-1. 进入前端目录
+```bash
+python scripts/create_admin.py --username admin --password 123456
+```
+
+### 6. 前端安装与启动
+
 ```bash
 cd frontend
-```
-
-2. 安装依赖
-```bash
 npm install
-```
-
-3. 配置环境变量
-```bash
-# 创建.env文件, 填入高德地图Web API Key 和 Web端JS API Key
-cp .env.example .env
-```
-
-4. 启动开发服务器
-```bash
+# 配置 .env(VITE_API_BASE_URL、VITE_AMAP_WEB_JS_KEY)
 npm run dev
 ```
 
-5. 打开浏览器访问 `http://localhost:5173`
+访问 `http://localhost:5173`。
 
 ## 📝 使用指南
 
-1. 在首页填写旅行信息:
-   - 目的地城市
-   - 旅行日期和天数
-   - 交通方式偏好
-   - 住宿偏好
-   - 旅行风格标签
+1. **生成行程**:首页填写出发地、日期、同行人数、预算、交通方式、兴趣标签 → 生成(南昌专属计划)
+2. **调整行程**:结果页"调整行程"框输入一句话指令(如"第二天酒店换成经济型"),只改局部
+3. **旅行助手**:顶栏"旅行助手",聊天提问景点 / 美食 / 天气 / 交通,支持多轮追问
+4. **我的行程**:登录后生成自动保存,顶栏头像下拉"我的行程"回看
+5. **后台管理**:管理员登录后,头像下拉"后台管理"(仪表盘 / 用户 / 知识库)
 
-2. 点击"生成旅行计划"按钮
+## 📄 API 文档
 
-3. 系统将:
-   - 调用 LangGraph 多智能体生成初步计划
-   - Agent自动调用高德地图MCP工具搜索景点
-   - Agent获取天气信息和路线规划
-   - 整合所有信息生成完整行程
-
-4. 查看结果:
-   - 每日详细行程
-   - 景点信息与地图标记
-   - 交通路线规划
-   - 天气预报
-   - 餐饮推荐
-
-## 🔧 核心实现
-
-### LangChain + LangGraph 多智能体集成
-
-```python
-from langchain_openai import ChatOpenAI
-from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.prebuilt import create_react_agent
-
-# 创建 LLM(DeepSeek 等 OpenAI 兼容接口)
-llm = ChatOpenAI(
-    model="deepseek-chat",
-    api_key="your_api_key",
-    base_url="https://api.deepseek.com",
-)
-
-# 通过 MCP 适配器拉起高德 MCP 服务器,加载成 LangChain 工具
-client = MultiServerMCPClient({
-    "amap": {
-        "transport": "stdio",
-        "command": "uv",
-        "args": ["tool", "run", "amap-mcp-server"],
-        "env": {"AMAP_MAPS_API_KEY": "your_amap_key"},
-    }
-})
-tools = await client.get_tools()
-
-# 创建一个会自动调用工具的 ReAct 智能体
-agent = create_react_agent(llm, tools, state_modifier="你是一个专业的旅行规划助手...")
-```
-
-### MCP工具调用
-
-Agent可以自动调用以下高德地图MCP工具:
-- `maps_text_search`: 搜索景点POI
-- `maps_weather`: 查询天气
-- `maps_direction_walking_by_address`: 步行路线规划
-- `maps_direction_driving_by_address`: 驾车路线规划
-- `maps_direction_transit_integrated_by_address`: 公共交通路线规划
-
-## 📄 API文档
-
-启动后端服务后,访问 `http://localhost:8000/docs` 查看完整的API文档。
+启动后访问 `http://localhost:8000/docs` 查看完整接口。
 
 主要端点:
-- `POST /api/trip/plan` - 生成旅行计划
-- `GET /api/map/poi` - 搜索POI
-- `GET /api/map/weather` - 查询天气
-- `POST /api/map/route` - 规划路线
 
+```text
+认证     POST /api/auth/register | POST /api/auth/login | GET /api/auth/me
+行程     POST /api/trip/plan | GET /api/trips | GET/DELETE /api/trips/{id}
+规划引擎  POST /api/plan/session | /api/plan/fill | /api/plan/generate | /api/plan/replan | /api/plan/check
+知识     GET /api/kb/search | GET /api/kb/stats
+问答     POST /api/chat(多轮 + 实时工具 + 记忆)
+后台     GET /api/admin/stats | GET /api/admin/users | GET /api/admin/kb
+地图     /api/poi/* | /api/map/*
+```
 
----
+## ✅ 快速验证清单
 
-**智能旅行助手** - 让旅行计划变得简单而智能 🌈
+| 步骤 | 验证点 |
+|---|---|
+| 注册登录 | `POST /api/auth/register` → `POST /api/auth/login` 返回 token |
+| 生成行程 | 首页提交 → 结果页展示南昌计划 |
+| 局部重规划 | 结果页"调整行程"输入指令 → 只改局部 |
+| 知识问答 | `/api/chat` 问"滕王阁营业时间" → 含来源 |
+| 历史行程 | 登录生成 → 顶栏"我的行程"可见 |
+| 后台管理 | admin 登录 → "后台管理"查看仪表盘 |
 
+## 📜 开源协议
+
+CC BY-NC-SA 4.0
+
+## 🙏 致谢
+
+- [LangChain](https://github.com/langchain-ai/langchain) / [LangGraph](https://github.com/langchain-ai/langgraph)
+- [高德地图开放平台](https://lbs.amap.com/) / [amap-mcp-server](https://github.com/sugarforever/amap-mcp-server)
+- [阿里云百炼](https://bailian.console.aliyun.com/)(千问 Embedding)
+- [ChromaDB](https://www.trychroma.com/) / [rank-bm25](https://github.com/dorianbrown/rank_bm25)

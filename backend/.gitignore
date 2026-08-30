@@ -37,6 +37,13 @@ ENV/
 .env
 .env.local
 
+# ---------- 本地数据库与向量库数据(运行时生成,不提交) ----------
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
 # ---------- 编辑器/IDE 的本地配置 ----------
 .vscode/
 .idea/

@@ -112,3 +112,162 @@ export interface TripPlanResponse {
   message: string    // 提示信息
   data?: TripPlan    // 具体数据(成功时才有)
 }
+
+// ============================================================
+// 账号体系相关类型
+// ============================================================
+
+/** 用户信息(不含密码)。 */
+export interface User {
+  id: number          // 用户 ID
+  username: string    // 用户名
+  nickname: string    // 昵称
+  role: string        // 角色: user / admin
+  created_at: string  // 注册时间
+}
+
+/** 注册请求体。 */
+export interface RegisterPayload {
+  username: string
+  password: string
+  nickname?: string
+}
+
+/** 登录请求体。 */
+export interface LoginPayload {
+  username: string
+  password: string
+}
+
+/** 认证响应(注册/登录成功)。 */
+export interface AuthResponse {
+  success: boolean
+  message: string
+  token: string
+  user?: User
+}
+
+// ============================================================
+// AI 行程规划引擎(对话式增量规划)相关类型
+// ============================================================
+
+/** 规划状态:基于出发地/日期/同行人数/预算/交通/兴趣等构建。 */
+export interface PlannerState {
+  departure_city: string    // 出发地
+  city: string              // 目的地(南昌)
+  start_date: string        // 开始日期
+  end_date: string          // 结束日期
+  travel_days: number       // 旅行天数
+  party_adults: number      // 成人人数
+  party_children: number    // 儿童人数
+  budget: number            // 预算(元,0=不限)
+  transportation: string    // 交通方式
+  accommodation: string     // 住宿偏好
+  interests: string[]       // 兴趣标签
+  notes: string             // 额外要求
+}
+
+/** 单条冲突信息。 */
+export interface ConflictInfo {
+  type: string       // budget / repeat / date / party / empty
+  level: string      // warning / error
+  message: string    // 冲突描述
+  suggestion: string // 建议
+}
+
+/** 规划会话响应(状态 + 缺失字段 + 计划 + 冲突)。 */
+export interface PlanningSessionResponse {
+  success: boolean
+  message: string
+  session_id: string
+  state?: PlannerState
+  missing_required: string[]
+  missing_optional: string[]
+  current_plan?: TripPlan
+  conflicts: ConflictInfo[]
+}
+
+/** 历史行程列表项(摘要)。 */
+export interface TripListItem {
+  id: number
+  city: string
+  start_date: string
+  end_date: string
+  travel_days: number
+  created_at: string
+}
+
+/** 历史行程列表响应。 */
+export interface TripListResponse {
+  success: boolean
+  message: string
+  data: TripListItem[]
+}
+
+/** 行程详情响应。 */
+export interface TripDetailResponse {
+  success: boolean
+  message: string
+  data?: TripPlan
+}
+
+// ============================================================
+// 旅行对话助手相关类型
+// ============================================================
+
+/** 单轮对话消息(多轮上下文)。 */
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+/** 问答请求体。 */
+export interface ChatRequest {
+  user_id?: string
+  message: string
+  chat_history: ChatMessage[]
+}
+
+/** 问答响应。 */
+export interface ChatResponse {
+  success: boolean
+  message: string
+  reply: string
+  user_id: string
+  related_memories: string[]
+  sources: string[]
+  preference_updated: boolean
+}
+
+// ============================================================
+// 后台管理相关类型
+// ============================================================
+
+/** 后台仪表盘统计。 */
+export interface AdminStats {
+  users_count: number
+  trips_count: number
+  chat_count: number
+  kb_chunks: number
+  trips_last_7d: { date: string; count: number }[]
+}
+
+/** 后台用户列表项。 */
+export interface AdminUserItem {
+  id: number
+  username: string
+  nickname: string
+  role: string
+  status: string
+  created_at: string
+  trips_count: number
+}
+
+/** 后台知识库条目。 */
+export interface KBItem {
+  id: string
+  text: string
+  category: string
+  title: string
+  source: string
+}

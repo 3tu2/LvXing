@@ -12,8 +12,8 @@
       <div class="icon-wrapper">
         <SendOutlined class="icon" />
       </div>
-      <h1 class="page-title">智能旅行助手</h1>
-      <p class="page-subtitle">基于AI的个性化旅行规划,让每一次出行都完美无忧</p>
+      <h1 class="page-title">南昌旅行助手</h1>
+      <p class="page-subtitle">AI 驱动的南昌专属旅行规划,让每一次赣鄱之旅都完美无忧</p>
     </div>
 
     <a-card class="form-card" :bordered="false">
@@ -22,21 +22,33 @@
         layout="vertical"
         @finish="handleSubmit"
       >
-        <!-- 第一步:目的地和日期 -->
+        <!-- 第一步:目的地与出行信息 -->
         <div class="form-section">
           <div class="section-header">
             <EnvironmentOutlined class="section-icon" />
-            <span class="section-title">目的地与日期</span>
+            <span class="section-title">目的地与出行信息</span>
           </div>
 
           <a-row :gutter="24">
-            <a-col :span="8">
-              <a-form-item name="city" :rules="[{ required: true, message: '请输入目的地城市' }]">
+            <a-col :span="6">
+              <a-form-item name="city">
                 <template #label>
-                  <span class="form-label">目的地城市</span>
+                  <span class="form-label">目的地</span>
+                </template>
+                <div class="city-fixed">
+                  <EnvironmentOutlined class="city-fixed-icon" />
+                  <span class="city-fixed-name">南昌</span>
+                  <span class="city-fixed-tag">南昌专属</span>
+                </div>
+              </a-form-item>
+            </a-col>
+            <a-col :span="6">
+              <a-form-item name="departure_city">
+                <template #label>
+                  <span class="form-label">出发地</span>
                 </template>
                 <a-input
-                  v-model:value="formData.city"
+                  v-model:value="formData.departure_city"
                   placeholder="例如: 北京"
                   size="large"
                   class="custom-input"
@@ -75,7 +87,34 @@
                 />
               </a-form-item>
             </a-col>
-            <a-col :span="4">
+          </a-row>
+
+          <a-row :gutter="24">
+            <a-col :span="6">
+              <a-form-item name="party_adults">
+                <template #label>
+                  <span class="form-label">成人人数</span>
+                </template>
+                <a-input-number v-model:value="formData.party_adults" :min="1" :max="20" size="large" style="width: 100%" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="6">
+              <a-form-item name="party_children">
+                <template #label>
+                  <span class="form-label">儿童人数</span>
+                </template>
+                <a-input-number v-model:value="formData.party_children" :min="0" :max="10" size="large" style="width: 100%" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="6">
+              <a-form-item name="budget">
+                <template #label>
+                  <span class="form-label">预算(元)</span>
+                </template>
+                <a-input-number v-model:value="formData.budget" :min="0" :step="500" placeholder="0 = 不限" size="large" style="width: 100%" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="6">
               <a-form-item>
                 <template #label>
                   <span class="form-label">旅行天数</span>
@@ -213,8 +252,9 @@
 import { ref, reactive, watch } from 'vue'   // ref=单个响应式变量;reactive=响应式对象;watch=监听变化
 import { useRouter } from 'vue-router'        // 用来做页面跳转
 import { message } from 'ant-design-vue'      // 弹提示框(成功/失败/警告)
-import { generateTripPlan } from '@/services/api'  // 调用后端的函数
-import type { TripFormData } from '@/types'   // 表单数据类型
+import { createPlanSession, generatePlan } from '@/services/api'  // 规划引擎相关接口
+import { authState } from '@/services/auth'         // 登录态(生成后自动保存行程)
+import type { TripFormData, PlannerState } from '@/types'   // 数据类型
 import type { Dayjs } from 'dayjs'            // 日期选择器用的日期对象类型
 // 线性图标(替代原来的 emoji,风格统一、更现代)
 import {
@@ -246,19 +286,27 @@ const loading = ref(false)         // 是否正在生成计划(控制加载动�
 const loadingProgress = ref(0)     // 加载进度(0~100)
 const loadingStatus = ref('')      // 加载时的提示文字(如"正在搜索景点...")
 
-// 表单数据的状态类型:把 start_date/end_date 换成日期选择器用的 Dayjs 类型
-// (因为表单里用 a-date-picker,它存的是 Dayjs 对象,提交前再转成字符串)
+// 表单数据的状态类型:把 start_date/end_date 换成日期选择器用的 Dayjs 类型,
+// 并扩展规划引擎需要的字段(出发地/同行人数/预算)
 type TripFormState = Omit<TripFormData, 'start_date' | 'end_date'> & {
   start_date: Dayjs | null
   end_date: Dayjs | null
+  departure_city: string
+  party_adults: number
+  party_children: number
+  budget: number
 }
 
 // 用 reactive 创建表单数据对象(模板里的 v-model 会绑定到它的字段)
 const formData = reactive<TripFormState>({
-  city: '',
+  city: '南昌',   // 固定南昌(南昌专属)
+  departure_city: '',
   start_date: null,
   end_date: null,
   travel_days: 1,
+  party_adults: 2,
+  party_children: 0,
+  budget: 0,
   transportation: '公共交通',   // 默认值
   accommodation: '经济型酒店',  // 默认值
   preferences: [],
@@ -315,30 +363,45 @@ const handleSubmit = async () => {
   }, 500)
 
   try {
-    // 组装真正要发给后端的数据(把 Dayjs 日期对象转成 "YYYY-MM-DD" 字符串)
-    const requestData: TripFormData = {
-      city: formData.city,
+    // 组装规划状态(PlannerState):出发地/日期/人数/预算/交通/兴趣等
+    const state: PlannerState = {
+      departure_city: formData.departure_city,
+      city: '南昌',  // 固定南昌(南昌专属)
       start_date: formData.start_date.format('YYYY-MM-DD'),
       end_date: formData.end_date.format('YYYY-MM-DD'),
       travel_days: formData.travel_days,
+      party_adults: formData.party_adults,
+      party_children: formData.party_children,
+      budget: formData.budget,
       transportation: formData.transportation,
       accommodation: formData.accommodation,
-      preferences: formData.preferences,
-      free_text_input: formData.free_text_input
+      interests: formData.preferences,
+      notes: formData.free_text_input
     }
 
-    // 调用后端接口生成计划(会等较久,因为大模型在后台慢慢生成)
-    const response = await generateTripPlan(requestData)
+    // 1) 创建规划会话(后端校验缺失字段;登录用户自动关联,生成后保存为历史行程)
+    const sessionRes = await createPlanSession(state, authState.user?.id)
+    if (!sessionRes.success) {
+      throw new Error(sessionRes.message || '创建规划会话失败')
+    }
+    if (sessionRes.missing_required.length > 0) {
+      message.warning(`请补充:${sessionRes.missing_required.join('、')}`)
+      throw new Error('规划参数不完整')
+    }
+
+    // 2) 生成行程(走多智能体)
+    const genRes = await generatePlan(sessionRes.session_id)
 
     // 请求成功:停止进度动画,跳到 100%
     clearInterval(progressInterval)
     loadingProgress.value = 100
     loadingStatus.value = '完成!'
 
-    if (response.success && response.data) {
-      // 把计划存到 sessionStorage(浏览器会话级存储,结果页从这里读取)
-      // 用 sessionStorage 而非地址栏传参,是因为计划数据可能很大
-      sessionStorage.setItem('tripPlan', JSON.stringify(response.data))
+    if (genRes.success && genRes.current_plan) {
+      // 把计划、会话 ID、冲突信息存到 sessionStorage,结果页从这里读取
+      sessionStorage.setItem('tripPlan', JSON.stringify(genRes.current_plan))
+      sessionStorage.setItem('planSessionId', genRes.session_id)
+      sessionStorage.setItem('planConflicts', JSON.stringify(genRes.conflicts || []))
 
       message.success('旅行计划生成成功!')
 
@@ -347,7 +410,7 @@ const handleSubmit = async () => {
         router.push('/result')
       }, 500)
     } else {
-      message.error(response.message || '生成失败')
+      message.error(genRes.message || '生成失败')
     }
   } catch (error: any) {
     // 请求出错:停止动画并提示错误
@@ -557,6 +620,25 @@ const handleSubmit = async () => {
 .custom-select :deep(.ant-select-focused .ant-select-selector) {
   border-color: #0ea5a4 !important;
   box-shadow: 0 0 0 3px rgba(14, 165, 164, 0.1) !important;
+}
+
+/* 目的地固定展示 - 南昌专属 */
+.city-fixed {
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 16px;
+  background: linear-gradient(135deg, #0ea5a4 0%, #10b981 100%);
+  border-radius: 12px;
+  color: white;
+}
+.city-fixed-icon { margin-right: 8px; font-size: 16px; }
+.city-fixed-name { font-size: 20px; font-weight: 700; margin-right: 8px; }
+.city-fixed-tag {
+  font-size: 12px;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
 }
 
 /* 天数显示 - 紧凑版 */

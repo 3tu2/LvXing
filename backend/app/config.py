@@ -8,9 +8,19 @@
 """
 
 import os
+import sys
 from typing import List
 from pydantic_settings import BaseSettings  # 用来定义"配置类",能自动从环境变量/文件读取值
 from dotenv import load_dotenv  # 用来加载 .env 文件,把里面的 KEY=VALUE 读进环境变量
+from .logging import logger  # 统一日志(loguru)
+
+# 兼容 Windows GBK 控制台/管道:项目日志含 emoji,统一把标准输出重配置为 UTF-8,
+# 否则在 cmd 或重定向日志时会因编码失败而崩溃。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # 加载环境变量:读取 backend/ 目录下的 .env 文件
 load_dotenv()
@@ -49,6 +59,30 @@ class Settings(BaseSettings):
     openai_api_key: str = ""                             # LLM 的 API Key(备用)
     openai_base_url: str = "https://api.openai.com/v1"   # LLM 服务的接口地址(备用)
     openai_model: str = "gpt-4"                          # 使用的模型名称(备用)
+
+    # ---------- RAG:千问 Embedding API 配置 ----------
+    # 向量化模型独立于 LLM,走阿里云百炼(text-embedding-v3,OpenAI 兼容模式)
+    dashscope_api_key: str = ""                                          # 阿里云百炼 API Key
+    embedding_model: str = "text-embedding-v3"                           # Embedding 模型名
+    embedding_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"  # OpenAI 兼容端点
+    embedding_dimensions: int = 1024                                     # 向量维度(text-embedding-v3 支持 1024/768/512)
+
+    # ---------- RAG:向量库(Chroma)配置 ----------
+    chroma_persist_dir: str = "data/chroma"    # Chroma 持久化目录(相对 backend/ 目录)
+    rag_collection_name: str = "travel_kb"     # 向量库集合名
+    rag_top_k: int = 3                         # 每次检索返回的片段条数
+    rag_chunk_size: int = 400                  # 文档分块大小(字符,中文 300~500 为宜)
+    rag_chunk_overlap: int = 80                # 分块重叠(字符)
+
+    # ---------- 记忆系统配置(个性化问答) ----------
+    memory_top_k: int = 5                          # 问答时检索的历史记忆条数
+    enable_preference_extraction: bool = True      # 是否启用反馈分析 Agent 提取偏好
+
+    # ---------- 认证与数据库配置 ----------
+    jwt_secret: str = "dev-secret-change-me"       # JWT 签名密钥(生产必须用环境变量覆盖!)
+    jwt_algorithm: str = "HS256"                   # JWT 签名算法
+    jwt_expire_minutes: int = 10080                # token 有效期(分钟,默认 7 天)
+    db_path: str = "data/app.db"                   # SQLite 数据库文件路径(相对 backend/ 目录)
 
     # 日志配置
     log_level: str = "INFO"   # 日志级别:DEBUG / INFO / WARNING / ERROR
@@ -93,6 +127,10 @@ def validate_config():
     if not settings.amap_api_key:
         errors.append("AMAP_API_KEY未配置")
 
+    # JWT 密钥校验:使用弱默认值/空值时给出明确警告(生产必须改)
+    if settings.jwt_secret in ("", "dev-secret-change-me"):
+        warnings.append("JWT_SECRET 使用了默认值,生产环境必须改为随机长字符串")
+
     # ChatOpenAI 从 LLM_API_KEY 读取,不强制要求 OPENAI_API_KEY
     llm_api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not llm_api_key:
@@ -103,29 +141,27 @@ def validate_config():
         error_msg = "配置错误:\n" + "\n".join(f"  - {e}" for e in errors)
         raise ValueError(error_msg)
 
-    # 有警告就打印提示,但继续运行
-    if warnings:
-        print("\n⚠️  配置警告:")
-        for w in warnings:
-            print(f"  - {w}")
+    # 有警告就记录日志,但继续运行
+    for w in warnings:
+        logger.warning(f"配置警告: {w}")
 
     return True
 
 
 # 打印配置信息(用于调试)
 def print_config():
-    """在控制台打印当前配置(会隐藏 API Key 等敏感信息,只显示"已配置/未配置")。"""
-    print(f"应用名称: {settings.app_name}")
-    print(f"版本: {settings.app_version}")
-    print(f"服务器: {settings.host}:{settings.port}")
-    print(f"高德地图API Key: {'已配置' if settings.amap_api_key else '未配置'}")
+    """打印当前配置(会隐藏 API Key 等敏感信息,只显示"已配置/未配置")。"""
+    logger.info(f"应用名称: {settings.app_name}")
+    logger.info(f"版本: {settings.app_version}")
+    logger.info(f"服务器: {settings.host}:{settings.port}")
+    logger.info(f"高德地图API Key: {'已配置' if settings.amap_api_key else '未配置'}")
 
     # 检查LLM配置
     llm_api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
     llm_base_url = os.getenv("LLM_BASE_URL") or settings.openai_base_url
     llm_model = os.getenv("LLM_MODEL_ID") or settings.openai_model
 
-    print(f"LLM API Key: {'已配置' if llm_api_key else '未配置'}")
-    print(f"LLM Base URL: {llm_base_url}")
-    print(f"LLM Model: {llm_model}")
-    print(f"日志级别: {settings.log_level}")
+    logger.info(f"LLM API Key: {'已配置' if llm_api_key else '未配置'}")
+    logger.info(f"LLM Base URL: {llm_base_url}")
+    logger.info(f"LLM Model: {llm_model}")
+    logger.info(f"日志级别: {settings.log_level}")

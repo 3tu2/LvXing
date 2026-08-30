@@ -15,6 +15,7 @@
 
 from fastapi import APIRouter, HTTPException, Query  # APIRouter 用来创建路由;HTTPException 用来抛错误;Query 用来描述查询参数
 from typing import Optional
+from ...logging import logger
 from ...models.schemas import (   # 从数据模型里导入请求/响应的"结构"
     POISearchRequest,
     POISearchResponse,
@@ -36,8 +37,8 @@ router = APIRouter(prefix="/map", tags=["地图服务"])
     description="根据关键词搜索POI(兴趣点)"
 )
 async def search_poi(
-    keywords: str = Query(..., description="搜索关键词", example="故宫"),
-    city: str = Query(..., description="城市", example="北京"),
+    keywords: str = Query(..., description="搜索关键词", examples=["滕王阁"]),
+    city: str = Query("南昌", description="城市", examples=["南昌"]),
     citylimit: bool = Query(True, description="是否限制在城市范围内")
 ):
     """
@@ -67,7 +68,7 @@ async def search_poi(
 
     except Exception as e:
         # 任何异常都打印日志并返回 500 错误
-        print(f"❌ POI搜索失败: {str(e)}")
+        logger.error(f"POI搜索失败: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"POI搜索失败: {str(e)}"
@@ -81,7 +82,7 @@ async def search_poi(
     description="查询指定城市的天气信息"
 )
 async def get_weather(
-    city: str = Query(..., description="城市名称", example="北京")
+    city: str = Query("南昌", description="城市名称", examples=["南昌"])
 ):
     """
     查询天气
@@ -106,7 +107,7 @@ async def get_weather(
         )
 
     except Exception as e:
-        print(f"❌ 天气查询失败: {str(e)}")
+        logger.error(f"天气查询失败: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"天气查询失败: {str(e)}"
@@ -149,7 +150,7 @@ async def plan_route(request: RouteRequest):
         )
 
     except Exception as e:
-        print(f"❌ 路线规划失败: {str(e)}")
+        logger.error(f"路线规划失败: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"路线规划失败: {str(e)}"

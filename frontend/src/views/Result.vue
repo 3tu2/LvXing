@@ -35,6 +35,33 @@
       </a-space>
     </div>
 
+    <!-- 智能调整(局部重规划)+ 冲突提示 -->
+    <a-card v-if="tripPlan && planSessionId" :bordered="false" class="replan-card">
+      <div class="replan-row">
+        <a-input
+          v-model:value="replanInstruction"
+          placeholder="用一句话调整行程,例如: 第二天酒店换成经济型 / 第三天不去梅岭改去海昏侯 / 预算降到2000"
+          size="large"
+          @pressEnter="handleReplan"
+        >
+          <template #prefix><BulbOutlined style="color: #0ea5a4" /></template>
+        </a-input>
+        <a-button type="primary" size="large" :loading="replanning" @click="handleReplan" class="replan-btn">
+          调整行程
+        </a-button>
+      </div>
+      <a-alert v-if="conflictList.length" type="warning" show-icon class="replan-alert">
+        <template #message>行程提示({{ conflictList.length }} 条)</template>
+        <template #description>
+          <ul class="conflict-list">
+            <li v-for="(c, i) in conflictList" :key="i">
+              {{ c.message }}<span v-if="c.suggestion"> — {{ c.suggestion }}</span>
+            </li>
+          </ul>
+        </template>
+      </a-alert>
+    </a-card>
+
     <div v-if="tripPlan" class="content-wrapper">
       <!-- 侧边导航 -->
       <div class="side-nav">
@@ -350,7 +377,8 @@ import {
 import AMapLoader from '@amap/amap-jsapi-loader'        // 高德地图 JS API 的加载器
 import html2canvas from 'html2canvas'                   // 把网页某块区域截图(用于导出图片)
 import jsPDF from 'jspdf'                               // 生成 PDF(用于导出 PDF)
-import type { TripPlan } from '@/types'
+import { replanPlan, getAttractionPhoto } from '@/services/api'  // 局部重规划 / 景点图片接口
+import type { TripPlan, ConflictInfo } from '@/types'
 
 const router = useRouter()
 
@@ -363,11 +391,26 @@ const activeSection = ref('overview')                 // 侧边导航当前高�
 const activeDays = ref<number[]>([0])                 // 折叠面板里展开的"天"(默认展开第1天,索引0)
 let map: any = null                                   // 高德地图实例(用普通变量,因为它不需要响应式)
 
+// 局部重规划相关状态
+const planSessionId = ref('')                          // 规划会话 ID(从首页带入,用于调整行程)
+const conflictList = ref<ConflictInfo[]>([])           // 冲突提示列表
+const replanInstruction = ref('')                      // 用户输入的调整要求
+const replanning = ref(false)                          // 是否正在调整行程
+
 // 组件挂载后执行:读取数据 -> 加载图片 -> 初始化地图
 onMounted(async () => {
   const data = sessionStorage.getItem('tripPlan')  // 从首页存的地方取出 JSON 字符串
   if (data) {
     tripPlan.value = JSON.parse(data)  // 还原成对象
+
+    // 读取规划会话 ID 与冲突提示(首页生成时写入)
+    planSessionId.value = sessionStorage.getItem('planSessionId') || ''
+    try {
+      conflictList.value = JSON.parse(sessionStorage.getItem('planConflicts') || '[]')
+    } catch {
+      conflictList.value = []
+    }
+
     // 加载景点图片
     await loadAttractionPhotos()
     // 等待 DOM 渲染完成后初始化地图(地图要挂到页面上已有的 div 里,所以必须先等渲染)
@@ -378,6 +421,42 @@ onMounted(async () => {
 
 const goBack = () => {
   router.push('/')
+}
+
+// 局部重规划:按自然语言指令调整现有行程(不重新全量生成)
+const handleReplan = async () => {
+  if (!planSessionId.value) {
+    message.warning('当前行程不支持调整(缺少会话信息),请重新生成')
+    return
+  }
+  const instruction = replanInstruction.value.trim()
+  if (!instruction) {
+    message.warning('请输入调整要求')
+    return
+  }
+  replanning.value = true
+  try {
+    const res = await replanPlan(planSessionId.value, instruction)
+    if (res.success && res.current_plan) {
+      tripPlan.value = res.current_plan
+      conflictList.value = res.conflicts || []
+      sessionStorage.setItem('tripPlan', JSON.stringify(res.current_plan))
+      sessionStorage.setItem('planConflicts', JSON.stringify(res.conflicts || []))
+      message.success('行程已调整')
+      replanInstruction.value = ''
+      // 刷新景点图片与地图
+      await loadAttractionPhotos()
+      if (map) map.destroy()
+      await nextTick()
+      initMap()
+    } else {
+      message.error(res.message || '调整失败')
+    }
+  } catch (e: any) {
+    message.error(e.message || '调整行程失败')
+  } finally {
+    replanning.value = false
+  }
 }
 
 // 滚动到指定区域
@@ -471,11 +550,10 @@ const loadAttractionPhotos = async () => {
 
   tripPlan.value.days.forEach(day => {
     day.attractions.forEach(attraction => {
-      const promise = fetch(`http://localhost:8000/api/poi/photo?name=${encodeURIComponent(attraction.name)}&city=${encodeURIComponent(city)}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.data.photo_url) {
-            attractionPhotos.value[attraction.name] = data.data.photo_url
+      const promise = getAttractionPhoto(attraction.name, city)
+        .then(photoUrl => {
+          if (photoUrl) {
+            attractionPhotos.value[attraction.name] = photoUrl
           }
         })
         .catch(err => {
@@ -839,7 +917,7 @@ const initMap = async () => {
     // 创建地图实例,挂到页面里 id 为 amap-container 的 div 上
     map = new AMap.Map('amap-container', {
       zoom: 12,                                // 缩放级别(数字越大越近)
-      center: [116.397128, 39.916527],         // 默认中心点(北京,后续会被景点覆盖)
+      center: [115.858, 28.682],               // 默认中心点(南昌,后续会被景点覆盖)
       viewMode: '3D'                           // 3D 视角
     })
 
@@ -977,6 +1055,29 @@ const drawRoutes = (AMap: any, attractions: any[]) => {
 .back-button {
   border-radius: 8px;
   font-weight: 500;
+}
+
+/* 智能调整(局部重规划)栏 */
+.replan-card {
+  max-width: 1200px;
+  margin: 0 auto 20px;
+  border-radius: 12px;
+}
+.replan-row {
+  display: flex;
+  gap: 12px;
+}
+.replan-btn {
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #0ea5a4 0%, #10b981 100%);
+  border: none;
+}
+.replan-alert {
+  margin-top: 12px;
+}
+.conflict-list {
+  margin: 0;
+  padding-left: 18px;
 }
 
 /* 内容布局 */

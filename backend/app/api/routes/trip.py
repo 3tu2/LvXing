@@ -9,6 +9,7 @@
 """
 
 from fastapi import APIRouter, HTTPException
+from ...logging import logger
 from ...models.schemas import (   # 从数据模型导入请求/响应结构
     TripRequest,
     TripPlanResponse,
@@ -36,6 +37,9 @@ async def plan_trip(request: TripRequest):
         旅行计划响应
     """
     try:
+        # 目的地固定为南昌(南昌聚焦:后端权威兜底,忽略前端传入的城市)
+        request.city = "南昌"
+
         # 打印收到的请求,方便调试时看日志
         print(f"\n{'='*60}")
         print(f"📥 收到旅行规划请求:")
@@ -62,7 +66,7 @@ async def plan_trip(request: TripRequest):
 
     except Exception as e:
         # 出错时打印完整堆栈,方便定位问题
-        print(f"❌ 生成旅行计划失败: {str(e)}")
+        logger.error(f"生成旅行计划失败: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(

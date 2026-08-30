@@ -11,14 +11,53 @@
 这里做的就是把下属部门登记到管家名下,并安排开门/关门时的杂事。
 """
 
-from fastapi import FastAPI                                     # 用来创建 Web 应用
+from contextlib import asynccontextmanager                  # lifespan 上下文管理器
+from fastapi import FastAPI, Depends                            # 用来创建 Web 应用 / 依赖注入
 from fastapi.middleware.cors import CORSMiddleware              # 处理跨域问题的中间件
 from ..config import get_settings, validate_config, print_config  # 从上级目录导入配置相关函数
+from ..logging import logger                                    # 统一日志(loguru)
 from ..services.amap_service import close_amap_tools            # 应用关闭时释放 MCP 资源
-from .routes import trip, poi, map as map_routes                # 导入三组路由
+from ..db import init_db                                        # 应用启动时初始化 SQLite
+from .deps import get_current_user                              # 登录依赖(核心接口强制登录)
+from .routes import trip, poi, map as map_routes, chat, memory, auth, planning, kb, trips, admin  # 导入十组路由
 
 # 获取配置(单例,全局只有一份)
 settings = get_settings()
+
+
+# 应用生命周期(替代已废弃的 @app.on_event)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """启动:初始化数据库、校验配置;关闭:释放 MCP 资源。"""
+    logger.info("=" * 60)
+    logger.info(f"🚀 {settings.app_name} v{settings.app_version}")
+    logger.info("=" * 60)
+
+    try:
+        init_db()
+    except Exception as e:
+        logger.error(f"数据库初始化失败: {e}")
+        raise
+
+    print_config()
+
+    try:
+        validate_config()
+        logger.info("配置验证通过")
+    except ValueError as e:
+        logger.error(f"配置验证失败: {e}")
+        logger.error("请检查 .env 文件并确保所有必要配置项都已设置")
+        raise
+
+    logger.info("API文档: http://localhost:8000/docs")
+    logger.info("ReDoc文档: http://localhost:8000/redoc")
+
+    yield  # 服务运行期间
+
+    # 关闭清理
+    await close_amap_tools()
+    logger.info("应用已关闭")
+
 
 # 创建 FastAPI 应用实例
 # 这些参数会显示在自动生成的接口文档(/docs)页面上
@@ -27,7 +66,8 @@ app = FastAPI(
     version=settings.app_version,     # 版本号
     description="基于LangChain + LangGraph框架的智能旅行规划助手API",  # 简介
     docs_url="/docs",                 # Swagger 文档地址
-    redoc_url="/redoc"                # ReDoc 文档地址
+    redoc_url="/redoc",               # ReDoc 文档地址
+    lifespan=lifespan,                # 启动/关闭生命周期
 )
 
 # 配置CORS(跨域资源共享)
@@ -41,49 +81,19 @@ app.add_middleware(
     allow_headers=["*"],                             # 允许所有请求头
 )
 
-# 注册路由:把三个路由模块挂载到 app 上
+# 注册路由:把十个路由模块挂载到 app 上
 # prefix="/api" 表示这些接口的网址都会以 /api 开头(例如 /api/trip/plan)
-app.include_router(trip.router, prefix="/api")
-app.include_router(poi.router, prefix="/api")
-app.include_router(map_routes.router, prefix="/api")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """应用启动事件。
-
-    当后端服务启动完成时,会自动执行这个函数,用来打印欢迎信息、
-    校验配置、显示接口文档地址等。
-    """
-    print("\n" + "="*60)
-    print(f"🚀 {settings.app_name} v{settings.app_version}")
-    print("="*60)
-
-    # 打印配置信息
-    print_config()
-
-    # 验证配置(缺关键配置会抛出异常,阻止启动)
-    try:
-        validate_config()
-        print("\n✅ 配置验证通过")
-    except ValueError as e:
-        print(f"\n❌ 配置验证失败:\n{e}")
-        print("\n请检查.env文件并确保所有必要的配置项都已设置")
-        raise  # 重新抛出异常,让启动失败,避免带病运行
-
-    print("\n" + "="*60)
-    print("📚 API文档: http://localhost:8000/docs")
-    print("📖 ReDoc文档: http://localhost:8000/redoc")
-    print("="*60 + "\n")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """应用关闭事件:当服务被停止时执行,释放 MCP 资源并打印关闭提示。"""
-    await close_amap_tools()  # 释放高德 MCP 工具缓存
-    print("\n" + "="*60)
-    print("👋 应用正在关闭...")
-    print("="*60 + "\n")
+# 除认证(auth)与健康检查外,所有业务接口强制登录(get_current_user 依赖拦截未登录请求)。
+app.include_router(auth.router, prefix="/api")   # 认证接口:开放(注册/登录无需登录)
+app.include_router(trip.router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(poi.router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(map_routes.router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(chat.router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(memory.router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(planning.router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(kb.router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(trips.router, prefix="/api", dependencies=[Depends(get_current_user)])
+app.include_router(admin.router, prefix="/api", dependencies=[Depends(get_current_user)])
 
 
 @app.get("/")

@@ -14,6 +14,7 @@ POI = Point of Interest,意思是"兴趣点",可以简单理解为地图上的�
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field  # 用来在本文件内直接定义一个响应模型
 from typing import List, Optional
+from ...logging import logger
 from ...services.amap_service import get_amap_service
 
 router = APIRouter(prefix="/poi", tags=["POI"])
@@ -55,7 +56,7 @@ async def get_poi_detail(poi_id: str):
         )
 
     except Exception as e:
-        print(f"❌ 获取POI详情失败: {str(e)}")
+        logger.error(f"获取POI详情失败: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"获取POI详情失败: {str(e)}"
@@ -67,13 +68,13 @@ async def get_poi_detail(poi_id: str):
     summary="搜索POI",
     description="根据关键词搜索POI"
 )
-async def search_poi(keywords: str, city: str = "北京"):
+async def search_poi(keywords: str, city: str = "南昌"):
     """
     搜索POI
 
     Args:
-        keywords: 搜索关键词(查询参数,比如 ?keywords=故宫)
-        city: 城市名称(默认北京)
+        keywords: 搜索关键词(查询参数,比如 ?keywords=滕王阁)
+        city: 城市名称(默认南昌)
 
     Returns:
         搜索结果
@@ -90,7 +91,7 @@ async def search_poi(keywords: str, city: str = "北京"):
         }
 
     except Exception as e:
-        print(f"❌ 搜索POI失败: {str(e)}")
+        logger.error(f"搜索POI失败: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"搜索POI失败: {str(e)}"
@@ -102,13 +103,13 @@ async def search_poi(keywords: str, city: str = "北京"):
     summary="获取景点图片",
     description="根据景点名称从高德地图获取图片"
 )
-async def get_attraction_photo(name: str, city: str = ""):
+async def get_attraction_photo(name: str, city: str = "南昌"):
     """
     获取景点图片
 
     Args:
         name: 景点名称
-        city: 城市名称(可选,用于限定搜索范围)
+        city: 城市名称(默认南昌,用于限定搜索范围)
 
     Returns:
         图片URL
@@ -129,7 +130,7 @@ async def get_attraction_photo(name: str, city: str = ""):
         }
 
     except Exception as e:
-        print(f"❌ 获取景点图片失败: {str(e)}")
+        logger.error(f"获取景点图片失败: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail=f"获取景点图片失败: {str(e)}"

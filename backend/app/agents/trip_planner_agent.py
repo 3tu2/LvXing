@@ -145,6 +145,10 @@ PLANNER_AGENT_PROMPT = """你是行程规划专家。你的任务是根据景点
    - 餐饮预估费用(estimated_cost)
    - 酒店预估费用(estimated_cost)
    - 预算汇总(budget)包含各项总费用
+8. **目的地是南昌,请突出南昌本地特色**:
+   - 经典景点:滕王阁、八一起义纪念馆、万寿宫历史文化街区、绳金塔、南昌之星摩天轮、秋水广场、梅岭风景区、海昏侯国遗址公园;
+   - 地道美食:南昌拌粉、瓦罐汤、藜蒿炒腊肉、白糖糕、南昌炒粉、水煮;
+   - 交通参考:昌北国际机场、南昌站/南昌西站/南昌东站、地铁1/2/3/4号线。
 """
 
 
@@ -235,11 +239,25 @@ class MultiAgentTripPlanner:
 
     async def _planner_node(self, state: PlannerState) -> Dict[str, Any]:
         request = state["request"]
+
+        # 检索南昌本地知识(RAG 增强),失败降级为空,不阻塞主流程
+        knowledge = ""
+        try:
+            from ..services import knowledge_service
+            knowledge = knowledge_service.build_planning_context(
+                city=request.city,
+                interests=request.preferences,
+                top_k=5,
+            )
+        except Exception as e:
+            print(f"⚠️  知识检索失败(降级为无知识): {e}")
+
         planner_query = self._build_planner_query(
             request,
             state.get("attraction_info", ""),
             state.get("weather_info", ""),
             state.get("hotel_info", ""),
+            knowledge=knowledge,
         )
         # 规划节点不调用工具,直接让 LLM 按 JSON 格式生成计划
         response = await self.llm.ainvoke([
@@ -328,8 +346,15 @@ class MultiAgentTripPlanner:
         keywords = request.preferences[0] if request.preferences else "景点"
         return f"请使用地图工具搜索{request.city}的「{keywords}」相关景点,并整理出每个景点的名称、地址、经纬度坐标、类别和简要描述。"
 
-    def _build_planner_query(self, request: TripRequest, attractions: str, weather: str, hotels: str = "") -> str:
-        """构建行程规划查询:把前面三步的结果拼成一份完整的"资料包"发给规划专家。"""
+    def _build_planner_query(
+        self,
+        request: TripRequest,
+        attractions: str,
+        weather: str,
+        hotels: str = "",
+        knowledge: str = "",
+    ) -> str:
+        """构建行程规划查询:把前面三步结果 + 南昌本地知识拼成"资料包"发给规划专家。"""
         query = f"""请根据以下信息生成{request.city}的{request.travel_days}天旅行计划:
 
 **基本信息:**
@@ -348,14 +373,22 @@ class MultiAgentTripPlanner:
 
 **酒店信息:**
 {hotels}
-
+"""
+        # 注入南昌本地知识(RAG 增强)
+        if knowledge:
+            query += f"""
+**南昌本地知识(供参考,景点/美食/营业时间应优先采用,若与实时信息冲突以实时为准):**
+{knowledge}
+"""
+        query += """
 **要求:**
 1. 每天安排2-3个景点
 2. 每天必须包含早中晚三餐
 3. 每天推荐一个具体的酒店(从酒店信息中选择)
-3. 考虑景点之间的距离和交通方式
-4. 返回完整的JSON格式数据
-5. 景点的经纬度坐标要真实准确
+4. 考虑景点之间的距离和交通方式
+5. 返回完整的JSON格式数据
+6. 景点的经纬度坐标要真实准确
+7. 景点、美食、营业时间等信息必须来自上述知识或工具查询结果,不要凭空编造
 """
         # 用户如果有额外要求,追加到末尾
         if request.free_text_input:
@@ -437,7 +470,7 @@ class MultiAgentTripPlanner:
                     Attraction(
                         name=f"{request.city}景点{j+1}",
                         address=f"{request.city}市",
-                        location=Location(longitude=116.4 + i*0.01 + j*0.005, latitude=39.9 + i*0.01 + j*0.005),
+                        location=Location(longitude=115.858 + i*0.01 + j*0.005, latitude=28.682 + i*0.01 + j*0.005),
                         visit_duration=120,
                         description=f"这是{request.city}的著名景点",
                         category="景点"
