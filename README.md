@@ -1,7 +1,12 @@
 # 南昌旅行助手 🌆✈️
 
 基于 **LangChain + LangGraph + 高德 MCP + RAG** 构建的南昌专属智能旅行规划助手,支持用户账号、对话式增量行程规划、南昌本地知识增强、个性化问答与后台管理。
-
+## ✨ 运行界面
+<img width="1790" height="892" alt="屏幕截图 2026-08-30 184803" src="https://github.com/user-attachments/assets/deaf2d69-f982-441a-b611-bf031eafd4ea" />
+<img width="1406" height="648" alt="屏幕截图 2026-08-30 191707" src="https://github.com/user-attachments/assets/42180079-c06f-43c5-8286-fb4b2895c60f" />
+<img width="1667" height="1178" alt="屏幕截图 2026-08-30 191640" src="https://github.com/user-attachments/assets/3c47ae08-bb20-4b4f-8f82-06d9541c297c" />
+<img width="1796" height="1093" alt="屏幕截图 2026-08-30 191620" src="https://github.com/user-attachments/assets/a782d0e7-6d85-4ca6-89ca-ac556a5337d8" />
+<img width="1796" height="1035" alt="屏幕截图 2026-08-30 185451" src="https://github.com/user-attachments/assets/2207369a-8ff4-4502-af44-8cc6fea5acb1" />
 ## ✨ 功能特性
 
 ### 用户与账号
